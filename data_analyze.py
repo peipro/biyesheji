@@ -2,24 +2,14 @@ import pandas as pd
 import numpy as np
 import os
 
-# --- 1. 基础配置：确保所有路径都指向 05data 文件夹 ---
+# --- 1. 基础配置 ---
 DATA_DIR = "05data"
-
-# 定义主轴表 (5分钟采集)
 POWER_FILE = os.path.join(DATA_DIR, "分钟耗电量.xlsx")
-# 定义环境与负荷表 (2分钟采集)
 WEATHER_FILE = os.path.join(DATA_DIR, "温湿度.xlsx")
 COOL_FILE = os.path.join(DATA_DIR, "冷量表.xlsx")
+CHILLER_FILES = [os.path.join(DATA_DIR, f"lxj{i}.xlsx") for i in range(1, 5)]
 
-# 定义 4 台冷机 (注意：这里已包含路径)
-CHILLER_FILES = [
-    os.path.join(DATA_DIR, "lxj1.xlsx"),
-    os.path.join(DATA_DIR, "lxj2.xlsx"),
-    os.path.join(DATA_DIR, "lxj3.xlsx"),
-    os.path.join(DATA_DIR, "lxj4.xlsx")
-]
-
-# 定义 A 区和 B 区所有泵组与冷却塔
+# 设备列表（保持不变）
 DEVICE_FILES = [
     os.path.join(DATA_DIR, 'A1冷冻泵.xlsx'), os.path.join(DATA_DIR, 'A2冷冻泵.xlsx'),
     os.path.join(DATA_DIR, 'A3冷冻泵.xlsx'), os.path.join(DATA_DIR, 'A4冷冻泵.xlsx'),
@@ -35,75 +25,102 @@ DEVICE_FILES = [
     os.path.join(DATA_DIR, 'B3冷却塔.xlsx')
 ]
 
-def load_excel_safe(path):
-    """读取Excel并转换时间格式"""
-    if not os.path.exists(path):
-        print(f"找不到文件: {path}")
-        return None
-    print(f"正在读取: {path}")
+def load_excel_refined(path):
+    """通用读取：数值化保护与分钟对齐"""
+    if not os.path.exists(path): return None
+    print(f"正在读取并预处理: {path}")
     df = pd.read_excel(path)
-    df['date_time'] = pd.to_datetime(df['date_time'])
+    cols_to_protect = ['power_consume', 'temperature', 'humidity', 'feedback_frequency', 'run_stop']
+    for col in cols_to_protect:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    df['date_time'] = pd.to_datetime(df['date_time']).dt.floor('min')
+    df = df.groupby('date_time').mean(numeric_only=True).reset_index()
     return df.sort_values('date_time')
 
-# --- 2. 开始整合 ---
+# --- 2. 整合流程 ---
 
-# 以“分钟耗电量”为主表
-df_main = load_excel_safe(POWER_FILE)
+# A. 读取主表（耗电量）
+df_main = load_excel_refined(POWER_FILE)
+print(f"主轴(耗电量)初始行数: {len(df_main)}")
 
-# 合并温湿度和冷量
-df_weather = load_excel_safe(WEATHER_FILE)
-df_cool = load_excel_safe(COOL_FILE)
+# B. 【核心改进】分机计算冷量表
+print(f"正在读取冷量表并执行分机计算: {COOL_FILE}")
+df_cool_raw = pd.read_excel(COOL_FILE)
+df_cool_raw.columns = [str(c).strip() for c in df_cool_raw.columns]
+df_cool_raw['date_time'] = pd.to_datetime(df_cool_raw['date_time']).dt.floor('min')
 
+# 强制数值化冷量表关键列
+for col in ['current_flow', 'return_temp', 'supply_temp']:
+    df_cool_raw[col] = pd.to_numeric(df_cool_raw[col], errors='coerce').fillna(0)
+
+# 【物理逻辑】：先计算每一行记录（单台冷机）的瞬时制冷量
+# 如果你的 current_flow 是 2 分钟累计量，请把 1 换成 30
+FLOW_FACTOR = 1  # 如果是 m3/h 取 1；如果是 2min 累计 m3 取 30
+df_cool_raw['row_Q'] = (df_cool_raw['current_flow'] * FLOW_FACTOR * 4.186 * (df_cool_raw['return_temp'] - df_cool_raw['supply_temp'])) / 3.6
+df_cool_raw['row_Q'] = df_cool_raw['row_Q'].clip(lower=0)
+
+# 【聚合】：同一分钟内的多台冷机数据，Q求和，流量求和，温度取均值
+df_cool = df_cool_raw.groupby('date_time').agg({
+    'row_Q': 'sum',
+    'current_flow': 'sum',
+    'return_temp': 'mean',
+    'supply_temp': 'mean'
+}).reset_index().rename(columns={'row_Q': 'calc_Q_kw'})
+
+# 合并冷量数据
+df_main = pd.merge_asof(df_main, df_cool, on='date_time', direction='nearest', tolerance=pd.Timedelta('5min'))
+
+# C. 合并其他表（温湿度、泵塔、冷机细节）
+# 温湿度
+df_weather = load_excel_refined(WEATHER_FILE)
 if df_weather is not None:
-    df_main = pd.merge_asof(df_main, df_weather, on='date_time', direction='nearest')
-if df_cool is not None:
-    df_main = pd.merge_asof(df_main, df_cool, on='date_time', direction='nearest')
+    df_main = pd.merge_asof(df_main, df_weather, on='date_time', direction='nearest', tolerance=pd.Timedelta('5min'))
 
-# 循环处理泵和塔：清洗频率 (run_stop=1 逻辑)
+# 泵与塔
 for path in DEVICE_FILES:
-    df_dev = load_excel_safe(path)
+    df_dev = load_excel_refined(path)
     if df_dev is not None:
-        # 获取不带路径和后缀的文件名作为列前缀
-        dev_name = os.path.basename(path).replace('.xlsx', '')
-        # 逻辑清洗
-        df_dev[f'{dev_name}_freq_cleaned'] = np.where(df_dev['run_stop'] == 1, df_dev['feedback_frequency'], 0)
-        # 异步对齐
-        df_main = pd.merge_asof(df_main, df_dev[['date_time', f'{dev_name}_freq_cleaned']],
-                                on='date_time', direction='nearest')
+        name = os.path.basename(path).replace('.xlsx', '')
+        if 'run_stop' in df_dev.columns and 'feedback_frequency' in df_dev.columns:
+            df_dev[f'{name}_freq_cleaned'] = np.where(df_dev['run_stop'] == 1, df_dev['feedback_frequency'], 0)
+        else:
+            df_dev[f'{name}_freq_cleaned'] = df_dev.get('feedback_frequency', 0)
+        df_main = pd.merge_asof(df_main, df_dev[['date_time', f'{name}_freq_cleaned']], on='date_time', direction='nearest', tolerance=pd.Timedelta('5min'))
 
-# 循环处理冷机
+# 冷机运行参数
 for path in CHILLER_FILES:
-    df_lxj = load_excel_safe(path)
+    df_lxj = load_excel_refined(path)
     if df_lxj is not None:
-        lxj_name = os.path.basename(path).replace('.xlsx', '')
-        # 重命名列防止冲突
-        df_lxj = df_lxj.rename(columns={col: f"{lxj_name}_{col}" for col in df_lxj.columns if col != 'date_time'})
-        df_main = pd.merge_asof(df_main, df_lxj, on='date_time', direction='nearest')
+        lxj_n = os.path.basename(path).replace('.xlsx', '')
+        df_lxj = df_lxj.rename(columns={c: f"{lxj_n}_{c}" for c in df_lxj.columns if c != 'date_time'})
+        df_main = pd.merge_asof(df_main, df_lxj, on='date_time', direction='nearest', tolerance=pd.Timedelta('5min'))
 
-print("--- 正在清洗数据类型并处理异常值 ---")
+# --- 3. 核心计算与 10 分钟对齐 ---
 
-# 定义需要参与物理计算的所有列
-cols_to_fix = ['current_flow', 'return_temp', 'supply_temp', 'power_consume']
+# 1. 10分钟重采样：消除 2min/5min 采样差，对齐电耗与冷量
+df_main = df_main.set_index('date_time').resample('10T').mean().reset_index()
 
-for col in cols_to_fix:
-    if col in df_main.columns:
-        # errors='coerce' 的作用：如果这一行是文字或乱码转不成数字，就强制把它变成 NaN
-        df_main[col] = pd.to_numeric(df_main[col], errors='coerce')
+# 2. 缺失值填充
+df_main = df_main.fillna(method='ffill').fillna(method='bfill')
 
-# 顺手填补一下转换产生的空值（用前一个有效值填充），防止计算出 NaN 导致后续模型训练报错
-df_main[cols_to_fix] = df_main[cols_to_fix].fillna(method='ffill').fillna(0)
-# --- 3. 核心计算 ---
-print("--- 正在计算总功率与系统 COP ---")
-# 功率 (kW)
+# 3. 功率计算 (如果 power_consume 是 5min 累计电量)
 df_main['total_power_kw'] = df_main['power_consume'] * 12
-# 制冷量 (kW) - 假设字段名: current_flow, return_temp, supply_temp
-df_main['calc_Q_kw'] = (df_main['current_flow'] * 4.186 * (df_main['return_temp'] - df_main['supply_temp'])) / 3.6
-# COP
-df_main['system_cop'] = df_main.apply(
-    lambda x: x['calc_Q_kw'] / x['total_power_kw'] if x['total_power_kw'] > 0 else 0, axis=1
-)
 
-# --- 4. 保存 ---
-output_name = "data.xlsx"
-df_main.to_excel(output_name, index=False)
-print(f"✅ 完成！文件已保存为: {output_name}")
+# 4. 系统 COP 计算
+# 此时 calc_Q_kw 已经是多机累加后的总制冷量
+df_main['system_cop'] = np.where(df_main['total_power_kw'] > 0,
+                                 df_main['calc_Q_kw'] / df_main['total_power_kw'], 0)
+
+# --- 4. 物理过滤：只保留真正运行且合理的数据 ---
+# 过滤掉流量过低或温差不正常的点
+df_final = df_main[
+    (df_main['current_flow'] > 1.0) &
+    (df_main['return_temp'] > df_main['supply_temp']) &
+    (df_main['system_cop'] > 0.5) & (df_main['system_cop'] < 15)
+].copy()
+
+# --- 5. 导出 ---
+output_name = "data_all_merged_optimized.xlsx"
+df_final.to_excel(output_name, index=False)
+print(f"✅ 合并完成！清洗后有效行数: {len(df_final)}")
