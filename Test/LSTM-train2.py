@@ -77,15 +77,26 @@ for epoch in range(60):
     if (epoch+1) % 10 == 0:
         print(f"Epoch {epoch+1:02d} 完成")
 
-# 5. 评估与可视化
+# --- 5. 评估与绘图 (拆分展示) ---
 model.eval()
 with torch.no_grad():
     y_pred_norm = model(X_test.to(device)).cpu().numpy()
     r2 = r2_score(y_test.numpy(), y_pred_norm)
 
-print(f"\n✅ 最终真实 R2 分数: {r2:.4f}")
+print(f"\n✅ 最终 R2 分数: {r2:.4f}")
 
-# 特征重要性分析
+# 图表 1: 预测效果对比 (使用英文标题防止字体报错)
+plt.figure(figsize=(10, 6))
+plt.plot(scaler_y.inverse_transform(y_test.numpy())[:150], label='Actual COP', color='royalblue', alpha=0.8)
+plt.plot(scaler_y.inverse_transform(y_pred_norm)[:150], label='LSTM Predict', color='darkorange', linestyle='--')
+plt.title(f"LSTM Model: Actual vs Predicted COP (R2: {r2:.4f})")
+plt.xlabel("Sample Index")
+plt.ylabel("System COP")
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.show() # 第一个窗口弹出，关闭后会显示第二个
+
+# 特征重要性分析 (Permutation Importance)
 importance = {}
 for i, col in enumerate(feature_cols):
     X_test_sh = X_test.clone()
@@ -94,16 +105,10 @@ for i, col in enumerate(feature_cols):
         sh_r2 = r2_score(y_test.numpy(), model(X_test_sh.to(device)).cpu().numpy())
     importance[col] = r2 - sh_r2
 
-# 绘图
-plt.figure(figsize=(14, 6))
-plt.subplot(1, 2, 1)
-plt.title(f"COP Prediction (R2: {r2:.4f})")
-plt.plot(scaler_y.inverse_transform(y_test.numpy())[:150], label='Actual', alpha=0.7)
-plt.plot(scaler_y.inverse_transform(y_pred_norm)[:150], label='Predict', linestyle='--')
-plt.legend()
-
-plt.subplot(1, 2, 2)
+# 图表 2: 特征重要性
+plt.figure(figsize=(10, 6))
 pd.Series(importance).sort_values().plot(kind='barh', color='darkgreen')
-plt.title("Feature Importance (Permutation)")
+plt.title("LSTM Model: Feature Importance Analysis")
+plt.xlabel("Importance Score (R2 Drop)")
 plt.tight_layout()
 plt.show()
