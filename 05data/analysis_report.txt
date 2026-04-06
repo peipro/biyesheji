@@ -1,0 +1,443 @@
+工作区Excel文件完整分析报告
+============================================================
+
+文件: A1冷冻泵.xlsx
+数据形状: 20963行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A1冷却塔.xlsx
+数据形状: 20962行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A1冷却泵.xlsx
+数据形状: 20962行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A2冷冻泵.xlsx
+数据形状: 20963行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A2冷却塔.xlsx
+数据形状: 20962行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A2冷却泵.xlsx
+数据形状: 20962行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A3冷冻泵.xlsx
+数据形状: 20963行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A3冷却塔.xlsx
+数据形状: 20962行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A3冷却泵.xlsx
+数据形状: 20962行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A4冷冻泵.xlsx
+数据形状: 20963行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A4冷却塔.xlsx
+数据形状: 20962行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A4冷却泵.xlsx
+数据形状: 20962行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: A冷冻.xlsx
+数据形状: 20964行 × 6列
+列名列表:
+  - date_time
+  - device_name
+  - supply_temp
+  - return_temp
+  - supply_pressure
+  - return_pressure
+
+文件: A冷却.xlsx
+数据形状: 20964行 × 6列
+列名列表:
+  - date_time
+  - device_name
+  - supply_temp
+  - return_temp
+  - supply_pressure
+  - return_pressure
+
+文件: B1冷冻泵.xlsx
+数据形状: 21009行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: B1冷却塔.xlsx
+数据形状: 21008行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: B1冷却泵.xlsx
+数据形状: 21009行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: B2冷冻泵.xlsx
+数据形状: 21009行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: B2冷却塔.xlsx
+数据形状: 21008行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: B2冷却泵.xlsx
+数据形状: 21009行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: B3冷冻泵.xlsx
+数据形状: 21009行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: B3冷却塔.xlsx
+数据形状: 21008行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: B3冷却泵.xlsx
+数据形状: 21008行 × 7列
+列名列表:
+  - date_time
+  - device_name
+  - run_stop
+  - feedback_frequency
+  - set_frequency
+  - run_time
+  - touch_set_fre
+
+文件: B冷冻.xlsx
+数据形状: 21009行 × 6列
+列名列表:
+  - date_time
+  - device_name
+  - supply_temp
+  - return_temp
+  - supply_pressure
+  - return_pressure
+
+文件: B冷却.xlsx
+数据形状: 21010行 × 6列
+列名列表:
+  - date_time
+  - device_name
+  - supply_temp
+  - return_temp
+  - supply_pressure
+  - return_pressure
+
+文件: lxj1.xlsx
+数据形状: 40500行 × 14列
+列名列表:
+  - date_time
+  - device_name
+  - chiller_run_status
+  - chilled_water_set
+  - chilled_water_inlet_temp
+  - chilled_water_outlet_temp
+  - cooling_water_inlet_temp
+  - cooling_water_outlet_temp
+  - eva_temp
+  - con_temp
+  - eva_press
+  - con_press
+  - frequency
+  - current
+
+文件: lxj2.xlsx
+数据形状: 40506行 × 14列
+列名列表:
+  - date_time
+  - device_name
+  - chiller_run_status
+  - chilled_water_set
+  - chilled_water_inlet_temp
+  - chilled_water_outlet_temp
+  - cooling_water_inlet_temp
+  - cooling_water_outlet_temp
+  - eva_temp
+  - con_temp
+  - eva_press
+  - con_press
+  - frequency
+  - current
+
+文件: lxj3.xlsx
+数据形状: 40501行 × 14列
+列名列表:
+  - date_time
+  - device_name
+  - chiller_run_status
+  - chilled_water_set
+  - chilled_water_inlet_temp
+  - chilled_water_outlet_temp
+  - cooling_water_inlet_temp
+  - cooling_water_outlet_temp
+  - eva_temp
+  - con_temp
+  - eva_press
+  - con_press
+  - frequency
+  - current
+
+文件: lxj4.xlsx
+数据形状: 40623行 × 14列
+列名列表:
+  - date_time
+  - device_name
+  - chiller_run_status
+  - chilled_water_set
+  - chilled_water_inlet_temp
+  - chilled_water_outlet_temp
+  - cooling_water_inlet_temp
+  - cooling_water_outlet_temp
+  - eva_temp
+  - con_temp
+  - eva_press
+  - con_press
+  - frequency
+  - current
+
+文件: ~$lxj1.xlsx
+错误: [Errno 2] No such file or directory: 'C:\\Users\\$lxj1.xlsx'
+
+文件: ~$冷量表.xlsx
+错误: [Errno 2] No such file or directory: 'C:\\Users\\$冷量表.xlsx'
+
+文件: 冷量表.xlsx
+数据形状: 107120行 × 8列
+列名列表:
+  - date_time
+  - device_name
+  - supply_temp
+  - return_temp
+  - current_flow
+  - total_flow
+  - current_cool_capacity
+  - total_cool_capacity
+
+文件: 分钟耗电量.xlsx
+数据形状: 16531行 × 3列
+列名列表:
+  - date_time
+  - device_compose
+  - power_consume
+
+文件: 功率-制冷站房.xlsx
+数据形状: 276354行 × 6列
+列名列表:
+  - date_time
+  - device_type
+  - device_name
+  - value
+  - work_section
+  - compose_type
+
+文件: 天耗电量.xlsx
+数据形状: 57行 × 3列
+列名列表:
+  - p_date
+  - device_compose
+  - power_consume
+
+文件: 小时耗电量.xlsx
+数据形状: 1377行 × 3列
+列名列表:
+  - date_time
+  - device_compose
+  - power_consume
+
+文件: 流量表.xlsx
+数据形状: 991141行 × 4列
+列名列表:
+  - date_time
+  - device_name
+  - current_flow
+  - total_flow
+
+文件: 温湿度.xlsx
+数据形状: 39647行 × 3列
+列名列表:
+  - date_time
+  - temperature
+  - humidity
+
+文件: 用电量-制冷站房.xlsx
+数据形状: 276363行 × 6列
+列名列表:
+  - date_time
+  - device_type
+  - device_name
+  - value
+  - work_section
+  - compose_type
+
+文件: 电学量值.xlsx
+数据形状: 832160行 × 9列
+列名列表:
+  - date_time
+  - device_name
+  - a_current
+  - b_current
+  - c_current
+  - a_vol
+  - b_vol
+  - c_vol
+  - value
+
+文件: 电流-制冷站房.xlsx
+数据形状: 276354行 × 6列
+列名列表:
+  - date_time
+  - device_type
+  - device_name
+  - value
+  - work_section
+  - compose_type
+

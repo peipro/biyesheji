@@ -24,7 +24,7 @@ feature_cols = [
 ]
 target_col = 'system_cop'
 
-# 2. 预处理与全局洗牌 (解决 R2 为负的关键)
+# 2. 预处理与时序正确划分 (保持时间顺序)
 scaler_x, scaler_y = MinMaxScaler(), MinMaxScaler()
 X_norm = scaler_x.fit_transform(df[feature_cols])
 y_norm = scaler_y.fit_transform(df[[target_col]])
@@ -36,17 +36,22 @@ def create_sequences(x, y, seq_length=30):
         yi.append(y[i + seq_length])
     return np.array(xi), np.array(yi)
 
-X_seq, y_seq = create_sequences(X_norm, y_norm, 30)
+# 正确做法：先按时序划分，再创建序列
+# 训练集：前80%按时间顺序，测试集：后20%未来数据
+split = int(len(X_norm) * 0.8)
+X_train_raw, X_test_raw = X_norm[:split], X_norm[split:]
+y_train_raw, y_test_raw = y_norm[:split], y_norm[split:]
 
-# 随机打乱索引
-indices = np.arange(len(X_seq))
-np.random.seed(42)
-np.random.shuffle(indices)
-X_seq, y_seq = X_seq[indices], y_seq[indices]
+# 分别对训练集和测试集创建序列
+WINDOW_SIZE = 30
+X_train, y_train = create_sequences(X_train_raw, y_train_raw, WINDOW_SIZE)
+X_test, y_test = create_sequences(X_test_raw, y_test_raw, WINDOW_SIZE)
 
-split = int(len(X_seq) * 0.8)
-X_train, X_test = torch.FloatTensor(X_seq[:split]), torch.FloatTensor(X_seq[split:])
-y_train, y_test = torch.FloatTensor(y_seq[:split]), torch.FloatTensor(y_seq[split:])
+print(f"窗口大小: {WINDOW_SIZE}")
+print(f"训练集序列数: {len(X_train)}, 测试集序列数: {len(X_test)}")
+
+X_train, X_test = torch.FloatTensor(X_train), torch.FloatTensor(X_test)
+y_train, y_test = torch.FloatTensor(y_train), torch.FloatTensor(y_test)
 
 # 3. 模型定义
 class COP_LSTM(nn.Module):
@@ -78,22 +83,33 @@ for epoch in range(60):
         print(f"Epoch {epoch+1:02d} 完成")
 
 # --- 5. 评估与绘图 (拆分展示) ---
+from sklearn.metrics import r2_score, mean_absolute_error
+
 model.eval()
 with torch.no_grad():
     y_pred_norm = model(X_test.to(device)).cpu().numpy()
-    r2 = r2_score(y_test.numpy(), y_pred_norm)
 
-print(f"\n✅ 最终 R2 分数: {r2:.4f}")
+# 在真实物理尺度上计算指标，和其他模型公平对比
+y_pred = scaler_y.inverse_transform(y_pred_norm)
+y_true = scaler_y.inverse_transform(y_test.numpy())
 
-# 图表 1: 预测效果对比 (使用英文标题防止字体报错)
-plt.figure(figsize=(10, 6))
-plt.plot(scaler_y.inverse_transform(y_test.numpy())[:150], label='Actual COP', color='royalblue', alpha=0.8)
-plt.plot(scaler_y.inverse_transform(y_pred_norm)[:150], label='LSTM Predict', color='darkorange', linestyle='--')
-plt.title(f"LSTM Model: Actual vs Predicted COP (R2: {r2:.4f})")
-plt.xlabel("Sample Index")
+r2 = r2_score(y_true, y_pred)
+mae = mean_absolute_error(y_true, y_pred)
+
+print(f"\n✅ 最终测试集评估结果:")
+print(f"R² Score: {r2:.4f} (越接近1越好)")
+print(f"MAE: {mae:.4f} (越小越好)")
+
+# 图表 1: 预测效果对比
+plt.figure(figsize=(12, 6))
+plt.plot(y_true[:300], label='Actual COP', color='royalblue', alpha=0.8)
+plt.plot(y_pred[:300], label='LSTM Predict', color='darkorange', linestyle='--')
+plt.title(f"LSTM Model: Actual vs Predicted COP (Window Size = {WINDOW_SIZE}, R² = {r2:.4f}, MAE = {mae:.4f})")
+plt.xlabel("Time Step (minute)")
 plt.ylabel("System COP")
 plt.legend()
 plt.grid(True, alpha=0.3)
+plt.tight_layout()
 plt.show() # 第一个窗口弹出，关闭后会显示第二个
 
 # 特征重要性分析 (Permutation Importance)
