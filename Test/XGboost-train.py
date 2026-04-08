@@ -9,15 +9,13 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
-df = pd.read_excel("data_feature_engineered_v3.xlsx")
+df = pd.read_excel("data_feature_engineered_v4.xlsx")
 
-# 特征列保持绝对一致
+# 特征列保持绝对一致（删除B区域全0特征）
 feature_cols = [
     'temperature', 'humidity', 'temp_diff', 'chiller_running_count',
     'lxj_evap_press_avg', 'lxj_cond_press_avg',
-    'A_Chilled_Pump_avg', 'B_Chilled_Pump_avg',
-    'A_Cooling_Pump_avg', 'B_Cooling_Pump_avg',
-    'A_Tower_avg', 'B_Tower_avg'
+    'A_Chilled_Pump_avg', 'A_Cooling_Pump_avg', 'A_Tower_avg'
 ]
 X = df[feature_cols]
 y = df['system_cop']
@@ -42,7 +40,7 @@ model_xgb = xgb.XGBRegressor(
     random_state=42
 )
 
-print("🚀 开始训练 XGBoost 模型...")
+print("开始训练 XGBoost 模型...")
 model_xgb.fit(X_train, y_train)
 
 # --- 4. 预测与评估 ---
@@ -52,7 +50,7 @@ r2 = r2_score(y_test, y_pred)
 mae = mean_absolute_error(y_test, y_pred)
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 
-print("\n📊 XGBoost 模型评估结果:")
+print("\nXGBoost 模型评估结果:")
 print(f"R2 Score: {r2:.4f}")
 print(f"MAE: {mae:.4f}")
 print(f"RMSE: {rmse:.4f}")

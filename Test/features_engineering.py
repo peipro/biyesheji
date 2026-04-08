@@ -7,13 +7,11 @@ df = pd.read_excel("data_deep_learning_final.xlsx")
 print(f"✅ 原始数据读取成功，行数: {len(df)}")
 
 # --- A. 泵与冷却塔按区域聚合 ---
+# 注：B区域设备在整个数据采集期间未开启，所有值为0，删除避免引入噪声
 groups = {
     'A_Chilled_Pump_avg': ['A1冷冻泵_f', 'A2冷冻泵_f', 'A3冷冻泵_f', 'A4冷冻泵_f'],
-    'B_Chilled_Pump_avg': ['B1冷冻泵_f', 'B2冷冻泵_f', 'B3冷冻泵_f'],
     'A_Cooling_Pump_avg': ['A1冷却泵_f', 'A2冷却泵_f', 'A3冷却泵_f', 'A4冷却泵_f'],
-    'B_Cooling_Pump_avg': ['B1冷却泵_f', 'B2冷却泵_f', 'B3冷却泵_f'],
-    'A_Tower_avg': ['A1冷却塔_f', 'A2冷却塔_f', 'A3冷却塔_f', 'A4冷却塔_f'],
-    'B_Tower_avg': ['B1冷却塔_f', 'B2冷却塔_f', 'B3冷却塔_f']
+    'A_Tower_avg': ['A1冷却塔_f', 'A2冷却塔_f', 'A3冷却塔_f', 'A4冷却塔_f']
 }
 
 for new_col, raw_cols in groups.items():
@@ -68,5 +66,6 @@ core_features += list(groups.keys())
 final_cols = [c for c in core_features if c in df.columns]
 df_refined = df[final_cols].copy().dropna()
 
-df_refined.to_excel("data_feature_engineered_v3.xlsx", index=False)
+df_refined.to_excel("data_feature_engineered_v4.xlsx", index=False)
 print(f"✅ 特征工程完成！最终列数: {len(df_refined.columns)}，行数: {len(df_refined)}")
+print(f"📝 说明：已删除B区域全0特征（B_Chilled_Pump_avg等），仅保留有效特征")

@@ -12,7 +12,7 @@ plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
 # 1. 加载数据
-df = pd.read_excel("data_feature_engineered_v3.xlsx")
+df = pd.read_excel("data_feature_engineered_v4.xlsx")
 
 # 严禁加入：total_power_kw, calc_Q_kw (防止数据泄露)
 feature_cols = [

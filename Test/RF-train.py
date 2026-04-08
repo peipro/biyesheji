@@ -2,36 +2,45 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import r2_score, mean_absolute_error
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 import matplotlib.pyplot as plt
+import sys
+import codecs
+sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 # 1. 加载数据
-df = pd.read_excel("data_feature_engineered_v3.xlsx")
+df = pd.read_excel("data_feature_engineered_v4.xlsx")
 feature_cols = [
     'temperature', 'humidity', 'temp_diff', 'chiller_running_count',
     'lxj_evap_press_avg', 'lxj_cond_press_avg',
-    'A_Chilled_Pump_avg', 'B_Chilled_Pump_avg',
-    'A_Cooling_Pump_avg', 'B_Cooling_Pump_avg',
-    'A_Tower_avg', 'B_Tower_avg'
+    'A_Chilled_Pump_avg', 'A_Cooling_Pump_avg', 'A_Tower_avg'
 ]
 X = df[feature_cols]
 y = df['system_cop']
 
+print(f"数据加载完成: 样本数 {len(df)}, 特征数 {len(feature_cols)}")
+
 # 2. 划分数据集 (随机打乱以保证公平对比)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+print(f"训练集: {len(X_train)}, 测试集: {len(X_test)}")
 
 # 3. 训练随机森林
 # n_estimators: 森林中树的数量; max_depth: 限制深度防止过拟合
 rf_model = RandomForestRegressor(n_estimators=100, max_depth=15, random_state=42, n_jobs=-1)
+print("开始训练随机森林...")
 rf_model.fit(X_train, y_train)
 
 # 4. 预测与评估
 y_pred_rf = rf_model.predict(X_test)
 r2_rf = r2_score(y_test, y_pred_rf)
-print(f"随机森林 R² Score: {r2_rf:.4f}")
-print(f"随机森林 MAE: {mean_absolute_error(y_test, y_pred_rf):.4f}")
+mae_rf = mean_absolute_error(y_test, y_pred_rf)
+rmse_rf = np.sqrt(mean_squared_error(y_test, y_pred_rf))
+print(f"R2 Score: {r2_rf:.4f}")
+print(f"MAE: {mae_rf:.4f}")
+print(f"RMSE: {rmse_rf:.4f}")
 
 # 5. 可视化特征重要性
 plt.figure(figsize=(10, 6))
