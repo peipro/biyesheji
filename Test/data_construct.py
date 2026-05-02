@@ -22,7 +22,7 @@ DEVICE_FILES = [
 def load_excel_refined(path):
     """通用读取：数值化保护与分钟对齐"""
     if not os.path.exists(path): return None
-    print(f"正在读取并预处理: {path}")
+    print("正在读取并预处理:", path)
     df = pd.read_excel(path)
     # 强制数值化，解决乘法报错
     for col in df.columns:
@@ -93,16 +93,18 @@ for path in CHILLER_FILES:
 
 # --- 3. 核心计算与高频化 ---
 
-# 1. 改变重采样频率：从 10T 改为 1T (样本量翻 10 倍的关键)
+# 1. 重采样到均匀1分钟时间粒度
+# 方案B：保持1分钟间隔，频率采用前向填充避免错标运行设备为停机
 df_main = df_main.set_index('date_time').resample('1T').mean().reset_index()
 
 # 2. 缺失值智能填充
-# 对于频率列 (_f 结尾)，没数说明没开，填充 0
+# 对于频率列 (_f 结尾)，先使用前向填充延续设备状态，剩余缺失（序列开头）填充 0
+# 这样避免把运行中的设备在插值点被错误标记为停机
 freq_cols = [c for c in df_main.columns if c.endswith('_f')]
-df_main[freq_cols] = df_main[freq_cols].fillna(0)
+df_main[freq_cols] = df_main[freq_cols].ffill().fillna(0)
 
-# 对于其他物理列，使用线性插值补全
-df_main = df_main.interpolate(method='linear', limit=10).fillna(method='ffill').fillna(method='bfill')
+# 对于其他物理列，使用线性插值补全短缺失
+df_main = df_main.interpolate(method='linear', limit=10).ffill().bfill()
 
 # 3. 功率计算 (5min 累计能耗 * 12)
 df_main['total_power_kw'] = df_main['power_consume'] * 12
@@ -111,15 +113,12 @@ df_main['total_power_kw'] = df_main['power_consume'] * 12
 df_main['system_cop'] = np.where(df_main['total_power_kw'] > 5,
                                  df_main['calc_Q_kw'] / df_main['total_power_kw'], 0)
 
-# --- 4. 物理过滤：保留核心运行数据 ---
-# 稍微放宽过滤条件，防止有效数据被误删
-df_final = df_main[
-    (df_main['total_power_kw'] > 30) &
-    (df_main['calc_Q_kw'] > 1.0) &
-    (df_main['system_cop'] > 0.5) & (df_main['system_cop'] < 12.0)
-    ].copy()
+# --- 4. 仅过滤停机数据（不做物理范围过滤） ===
+# 消融实验2验证：保留所有COP>0数据性能更好（R²提升+0.03）
+# 过滤掉COP<=0的停机/空载工况即可
+df_final = df_main[df_main['system_cop'] > 0].copy()
 
 # --- 5. 导出 ---
-output_name = "data_deep_learning_final.xlsx"
+output_name = "data_deep_learning_final_v3.xlsx"
 df_final.to_excel(output_name, index=False)
-print(f"✅ 合并完成！最终有效行数: {len(df_final)}")
+print("合并完成！最终有效行数:", len(df_final))

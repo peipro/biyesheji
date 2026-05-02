@@ -1,22 +1,32 @@
 import pandas as pd
 import numpy as np
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from torch.utils.data import DataLoader, TensorDataset
 import copy
+import sys
+import codecs
+sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
 
 # --- 1. 环境配置 ---
-plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
 # 固定随机种子保证可复现
 seed = 42
 np.random.seed(seed)
 torch.manual_seed(seed)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 # --- 2. 超参数 ---
 BATCH_SIZE = 64
@@ -26,14 +36,19 @@ DROPOUT = 0.1
 EPOCHS = 300
 PATIENCE = 25
 
-# --- 3. 加载数据 ---
-df = pd.read_excel("data_feature_engineered_v4.xlsx")
+parser = argparse.ArgumentParser(description='ANN训练')
+parser.add_argument('--input', type=str, default='data_feature_engineered_v5.xlsx',
+                    help='输入数据文件路径 (默认: data_feature_engineered_v5.xlsx)')
+args = parser.parse_args()
 
-# 定义特征列 (删除B区域全0特征，所有模型保持一致)
+# --- 3. 加载数据 ---
+df = pd.read_excel(args.input)
+
+# 定义特征列 (所有模型保持一致)
 feature_cols = [
-    'temperature', 'humidity', 'temp_diff', 'chiller_running_count',
+    'temperature', 'humidity', 'temp_diff',
     'lxj_evap_press_avg', 'lxj_cond_press_avg',
-    'A_Chilled_Pump_avg', 'A_Cooling_Pump_avg', 'A_Tower_avg'
+    'A4冷冻泵_f', 'A1冷却泵_f', 'A4冷却塔_f'
 ]
 target_col = 'system_cop'
 
@@ -41,28 +56,28 @@ X = df[feature_cols].values
 y = df[target_col].values.reshape(-1, 1)
 
 # --- 4. 数据预处理 ---
+# 随机划分 80%训练, 10%验证, 10%测试
+X_train_raw, X_temp, y_train_raw, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
+X_val_raw, X_test_raw, y_val_raw, y_test_raw = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+
+# 归一化：只在训练集上拟合，防止测试集信息泄漏
 scaler_x = MinMaxScaler()
 scaler_y = MinMaxScaler()
 
-X_norm = scaler_x.fit_transform(X)
-y_norm = scaler_y.fit_transform(y)
+X_train_norm = scaler_x.fit_transform(X_train_raw)
+y_train_norm = scaler_y.fit_transform(y_train_raw.reshape(-1, 1))
+X_val_norm = scaler_x.transform(X_val_raw)
+y_val_norm = scaler_y.transform(y_val_raw.reshape(-1, 1))
+X_test_norm = scaler_x.transform(X_test_raw)
+y_test_norm = scaler_y.transform(y_test_raw.reshape(-1, 1))
 
 # 转换为 Tensor
-X_tensor = torch.FloatTensor(X_norm)
-y_tensor = torch.FloatTensor(y_norm)
-
-# 随机打乱并划分数据集: 80%训练, 10%验证, 10%测试
-torch.manual_seed(42)
-indices = torch.randperm(len(X_tensor))
-train_end = int(len(X_tensor) * 0.8)
-val_end = int(len(X_tensor) * 0.9)
-
-train_idx = indices[:train_end]
-val_idx = indices[train_end:val_end]
-test_idx = indices[val_end:]
-
-X_train, X_val, X_test = X_tensor[train_idx], X_tensor[val_idx], X_tensor[test_idx]
-y_train, y_val, y_test = y_tensor[train_idx], y_tensor[val_idx], y_tensor[test_idx]
+X_train = torch.FloatTensor(X_train_norm)
+y_train = torch.FloatTensor(y_train_norm)
+X_val = torch.FloatTensor(X_val_norm)
+y_val = torch.FloatTensor(y_val_norm)
+X_test = torch.FloatTensor(X_test_norm)
+y_test = torch.FloatTensor(y_test_norm)
 
 # 构建 DataLoader
 train_dataset = TensorDataset(X_train, y_train)
@@ -121,6 +136,7 @@ criterion = nn.MSELoss()
 
 # --- 6. 训练模型 + 早停 ---
 print(f"开始训练改进MLP模型 (设备: {device})...")
+print(f"  CUDA可用: {torch.cuda.is_available()}, 设备名称: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A'}")
 print(f"超参数: batch={BATCH_SIZE}, lr={LR}, weight_decay={WEIGHT_DECAY}, dropout={DROPOUT}")
 
 best_val_loss = float('inf')
@@ -206,8 +222,11 @@ print(f"RMSE: {rmse:.4f}")
 print("\n正在计算特征重要性...")
 importances = {}
 
-# 计算基准分数 (R2)
-baseline_r2 = r2
+# 计算基准分数：在归一化空间计算R²，与perm R²在同一空间对比
+with torch.no_grad():
+    y_baseline_norm = model(X_test.to(device)).cpu().numpy()
+baseline_r2_norm = r2_score(y_test.numpy(), y_baseline_norm)
+print(f"  基线 R2 (归一化空间): {baseline_r2_norm:.4f}")
 
 for i, col in enumerate(feature_cols):
     # 复制一份测试数据
@@ -223,7 +242,7 @@ for i, col in enumerate(feature_cols):
         perm_r2 = r2_score(y_test.numpy(), y_perm_pred_norm)
 
     # 重要性 = 基准 R2 - 打乱后的 R2
-    importances[col] = baseline_r2 - perm_r2
+    importances[col] = baseline_r2_norm - perm_r2
 
 # --- 9. 可视化 ---
 
@@ -237,7 +256,7 @@ plt.ylabel("MSE Loss", fontsize=12)
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig("../pic/ann_improved_loss.png", dpi=150, bbox_inches='tight')
+plt.savefig("../pic/baseline/ann_loss.png", dpi=150, bbox_inches='tight')
 plt.show()
 
 # 图2: 预测对比图（前150点）
@@ -250,17 +269,17 @@ plt.ylabel("系统COP", fontsize=12)
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig("../pic/ann_improved_pred.png", dpi=150, bbox_inches='tight')
+plt.savefig("../pic/baseline/ann_pred_comparison.png", dpi=150, bbox_inches='tight')
 plt.show()
 
 # 图3: 特征重要性条形图
 plt.figure(figsize=(10, 6))
 importance_series = pd.Series(importances).sort_values()
 importance_series.plot(kind='barh', color='salmon')
-plt.title("改进MLP: 特征重要性 (Permutation方法)", fontsize=14)
+plt.title("ANN: 特征重要性 (Permutation方法)", fontsize=14)
 plt.xlabel("重要性分数 (R2下降幅度)", fontsize=12)
 plt.ylabel("特征", fontsize=12)
 plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.tight_layout()
-plt.savefig("../pic/ann_improved_feature_importance.png", dpi=150, bbox_inches='tight')
+plt.savefig("../pic/baseline/ann_feature_importance.png", dpi=150, bbox_inches='tight')
 plt.show()

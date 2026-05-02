@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,18 +10,26 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from torch.utils.data import DataLoader, TensorDataset
 import copy
 import random
+from sklearn.model_selection import train_test_split
 
 # 设置随机种子保证可复现
 seed = 42
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
-# 不使用CUDA，移除CUDA种子设置避免初始化CUDA
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
 
 # 设置中文显示
-plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei']
 plt.rcParams['axes.unicode_minus'] = False
+
+parser = argparse.ArgumentParser(description='LSTM训练')
+parser.add_argument('--input', type=str, default='data_feature_engineered_v5.xlsx',
+                    help='输入数据文件路径 (默认: data_feature_engineered_v5.xlsx)')
+args = parser.parse_args()
 
 # ==================== 超参数设置 ====================
 SEQ_LENGTH = 30        # 增大窗口，让模型看到更多历史
@@ -35,13 +44,13 @@ CLIP_GRAD_NORM = 5.0   # 梯度裁剪
 # =====================================================
 
 # 1. 加载数据
-df = pd.read_excel("data_feature_engineered_v4.xlsx")
+df = pd.read_excel(args.input)
 
-# 特征选择（与其他模型完全一致，删除B区域全0特征，严禁加入泄露特征）
+# 特征选择（与其他模型完全一致，严禁加入泄露特征）
 feature_cols = [
-    'temperature', 'humidity', 'temp_diff', 'chiller_running_count',
+    'temperature', 'humidity', 'temp_diff',
     'lxj_evap_press_avg', 'lxj_cond_press_avg',
-    'A_Chilled_Pump_avg', 'A_Cooling_Pump_avg', 'A_Tower_avg'
+    'A4冷冻泵_f', 'A1冷却泵_f', 'A4冷却塔_f'
 ]
 target_col = 'system_cop'
 
@@ -60,31 +69,29 @@ def create_sequences(x, y, seq_length):
         yi.append(y[i + seq_length])
     return np.array(xi), np.array(yi)
 
-# 2. 和其他模型（XGBoost/ANN/RF）保持一致：随机划分
-# 先对整个数据集归一化，再创建所有序列，然后随机打乱划分训练/验证/测试
-# 序列内部仍保持时序顺序，不破坏时间依赖关系
+# 2. 创建滑动窗口序列，然后用 sklearn train_test_split 随机划分
+X_raw = df[feature_cols].values
+y_raw = df[[target_col]].values
+
+X_all_seq, y_all_seq = create_sequences(X_raw, y_raw, SEQ_LENGTH)
+y_all_seq = y_all_seq.reshape(-1, 1)
+
+# 使用 sklearn train_test_split（与 RF/XGBoost/ANN 完全一致）
+X_train_seq, X_temp, y_train_seq, y_temp = train_test_split(
+    X_all_seq, y_all_seq, test_size=0.2, random_state=42)
+X_val_seq, X_test_seq, y_val_seq, y_test_seq = train_test_split(
+    X_temp, y_temp, test_size=0.5, random_state=42)
+
+# 归一化：只在训练集上拟合
 scaler_x = MinMaxScaler(feature_range=(0, 1))
-X_all = scaler_x.fit_transform(df[feature_cols])
+scaler_x.fit(X_train_seq.reshape(-1, X_train_seq.shape[2]))
 
-# y不做归一化，直接用原始值
-y_all = df[[target_col]].values
-
-# 创建所有序列
-X_all_seq, y_all_seq = create_sequences(X_all, y_all, SEQ_LENGTH)
-
-# 随机打乱序列（保持每个序列内部时序不变）
-np.random.seed(42)
-perm = np.random.permutation(len(X_all_seq))
-X_all_seq = X_all_seq[perm]
-y_all_seq = y_all_seq[perm]
-
-# 8:1:1 划分训练/验证/测试
-train_end = int(len(X_all_seq) * 0.8)
-val_end = int(len(X_all_seq) * 0.9)
-
-X_train_seq, y_train_seq = X_all_seq[:train_end], y_all_seq[:train_end]
-X_val_seq, y_val_seq = X_all_seq[train_end:val_end], y_all_seq[train_end:val_end]
-X_test_seq, y_test_seq = X_all_seq[val_end:], y_all_seq[val_end:]
+X_train_seq = scaler_x.transform(
+    X_train_seq.reshape(-1, X_train_seq.shape[2])).reshape(len(X_train_seq), SEQ_LENGTH, -1)
+X_val_seq = scaler_x.transform(
+    X_val_seq.reshape(-1, X_val_seq.shape[2])).reshape(len(X_val_seq), SEQ_LENGTH, -1)
+X_test_seq = scaler_x.transform(
+    X_test_seq.reshape(-1, X_test_seq.shape[2])).reshape(len(X_test_seq), SEQ_LENGTH, -1)
 
 print(f"随机划分: 训练 {len(X_train_seq)}, 验证 {len(X_val_seq)}, 测试 {len(X_test_seq)}")
 print(f"窗口大小: {SEQ_LENGTH}")
@@ -125,8 +132,9 @@ class COP_LSTM(nn.Module):
         out = self.fc(out)
         return out
 
-# 强制使用CPU，避免Windows CUDA虚拟内存不足问题
-device = torch.device("cpu")
+# 自动检测GPU/CPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"使用设备: {device}")
 model = COP_LSTM(
     input_dim=len(feature_cols),
     hidden_dim=HIDDEN_DIM,
@@ -153,10 +161,6 @@ print(f"开始训练，设备: {device}")
 print(f"超参数: seq_length={SEQ_LENGTH}, hidden_dim={HIDDEN_DIM}, dropout={DROPOUT}, lr={LR}")
 
 # 7. 训练循环 + 早停
-best_val_loss = float('inf')
-best_model_state = None
-early_stop_count = 0
-train_loss_history = []
 best_val_loss = float('inf')
 best_model_state = None
 early_stop_count = 0
@@ -264,7 +268,7 @@ plt.ylabel("MSE Loss (标准化后)", fontsize=12)
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig(f"../pic/lstm_final_loss_w{SEQ_LENGTH}.png", dpi=150, bbox_inches='tight')
+plt.savefig(f"../pic/baseline/lstm_loss.png", dpi=150, bbox_inches='tight')
 plt.show()
 
 # 图2: 预测对比曲线（前300点）
@@ -277,7 +281,7 @@ plt.ylabel("系统COP", fontsize=12)
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig(f"../pic/lstm_final_pred_w{SEQ_LENGTH}.png", dpi=150, bbox_inches='tight')
+plt.savefig(f"../pic/baseline/lstm_pred_comparison.png", dpi=150, bbox_inches='tight')
 plt.show()
 
 # 图3: 预测值vs真实值散点图
@@ -288,12 +292,12 @@ max_val = max(y_true.max(), y_pred.max())
 plt.plot([min_val, max_val], [min_val, max_val], 'r--', label='y=x', linewidth=1.5)
 plt.xlabel("真实COP", fontsize=12)
 plt.ylabel("预测COP", fontsize=12)
-plt.title("LSTM改进版: 预测值vs真实值散点图", fontsize=14)
+plt.title("LSTM: 预测值vs真实值散点图", fontsize=14)
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.axis('equal')
 plt.tight_layout()
-plt.savefig(f"../pic/lstm_final_scatter_w{SEQ_LENGTH}.png", dpi=150, bbox_inches='tight')
+plt.savefig(f"../pic/baseline/lstm_scatter.png", dpi=150, bbox_inches='tight')
 plt.show()
 
 # 10. 特征重要性分析 (Permutation Importance)
@@ -337,7 +341,7 @@ plt.xlabel("重要性分数 (R2下降幅度)", fontsize=12)
 plt.ylabel("特征", fontsize=12)
 plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.tight_layout()
-plt.savefig(f"../pic/lstm_final_feature_importance_w{SEQ_LENGTH}.png", dpi=150, bbox_inches='tight')
+plt.savefig(f"../pic/baseline/lstm_feature_importance.png", dpi=150, bbox_inches='tight')
 plt.show()
 
 print("\n所有分析完成！")

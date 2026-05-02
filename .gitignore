@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.pyc
+*.pth
+*.pkl
+
+# IDE
+.idea/
+.claude/
+
+# Generated data (can be regenerated)
+Test/*.xlsx
+Test/*.csv
+Test/*.json
+!Test/correlation_results.csv
+!Test/model_results_original.json
+!Test/model_results_filtered.json
+
+# Generated images
+pic/
+
+# Temp files
+0
+30kW
+1.pdf
+*.msi
+
+# Personal documents
+写作记录文档材料/
+论文目录大纲.md
+中期答辩.md
+补充数据/
+毕业论文初稿.pdf
+实验总结.docx
+实验总结.pdf
+故障诊断.pdf
+消融实验.pdf
+卡尔曼滤波技术文档.pdf
+卡尔曼滤波实施总结.md
+四个模型基线实验结果.md
+相关性分析.md
+
+# Temp scripts
+analyze_timeseries.py
+check_final_data.py
+check_interval.py
+check_original_device_data.py
+v6_flow_reconstructed.py
